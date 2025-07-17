@@ -14,7 +14,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      height: 100vh;
+      min-height: 100vh;
       padding: 20px;
       text-align: center;
     }
@@ -23,8 +23,10 @@
       padding: 20px;
       border-radius: 12px;
       max-width: 600px;
+      width: 100%;
       font-size: 1.1rem;
       margin-top: 20px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
     .button {
       margin-top: 20px;
@@ -35,76 +37,195 @@
       border-radius: 8px;
       font-size: 1rem;
       cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    .button:hover {
+      background-color: #2563eb;
+    }
+    .loading {
+      color: #60a5fa;
+      font-style: italic;
+    }
+    .error {
+      color: #ef4444;
+    }
+    .success {
+      color: #22c55e;
     }
   </style>
 </head>
 <body>
   <h1>👋 Tap Anywhere to Start Rachit's Assistant</h1>
   <div id="output">Awaiting user interaction...</div>
-
   <script>
-    const weatherApiKey = "your_openweathermap_api"; // Add your key
+    // You need to replace 'YOUR_API_KEY' with your actual OpenWeatherMap API key
+    const weatherApiKey = "YOUR_API_KEY"; // Get from https://openweathermap.org/api
     const newsApiKey = "pub_4713fd30b6134babbee1889bd2a7f798";
-    const forefrontChatGPTURL = "https://chat.forefront.ai/api"; // Optional if integrating later
-
+    
+    // Enhanced TTS function with mobile support
     const speak = (text) => {
-      responsiveVoice.speak(text, "Hindi Female", { rate: 1 });
+      if ('speechSynthesis' in window) {
+        // Use native Web Speech API for better mobile support
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1;
+        utterance.pitch = 1;
+        utterance.volume = 1;
+        utterance.lang = 'en-IN';
+        
+        // Try to use an Indian English voice if available
+        const voices = speechSynthesis.getVoices();
+        const indianVoice = voices.find(voice => 
+          voice.lang.includes('en-IN') || voice.name.includes('Indian')
+        );
+        
+        if (indianVoice) {
+          utterance.voice = indianVoice;
+        } else {
+          // Fallback to female voice
+          const femaleVoice = voices.find(voice => 
+            voice.name.toLowerCase().includes('female') || 
+            voice.name.toLowerCase().includes('woman')
+          );
+          if (femaleVoice) utterance.voice = femaleVoice;
+        }
+        
+        speechSynthesis.speak(utterance);
+      } else if (typeof responsiveVoice !== 'undefined') {
+        // Fallback to ResponsiveVoice
+        responsiveVoice.speak(text, "Hindi Female", { rate: 1 });
+      } else {
+        console.log("TTS: " + text);
+      }
     };
-
+    
     const showOutput = (text) => {
       document.getElementById("output").innerHTML = text.replace(/\n/g, "<br>");
     };
-
-    const getTimeAndWeather = async () => {
-      const weatherCity = "Kota,IN";
+    
+    const appendOutput = (text) => {
+      const output = document.getElementById("output");
+      output.innerHTML += "<br><br>" + text.replace(/\n/g, "<br>");
+    };
+    
+    // Get coordinates for Noida, UP
+    const getNoidaCoords = async () => {
       try {
-        const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${weatherCity}&appid=${weatherApiKey}&units=metric`);
+        const res = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=Noida,UP,IN&limit=1&appid=${weatherApiKey}`);
         const data = await res.json();
-        const temp = data.main.temp;
-        const desc = data.weather[0].description;
-        const time = new Date().toLocaleTimeString('en-IN', { timeStyle: 'short' });
-
-        const weatherText = `The time is ${time}. Current weather in ${weatherCity} is ${desc} with ${temp} degree Celsius.`;
-        speak(weatherText);
-        showOutput(`✅ Weather: ${weatherText}`);
+        if (data.length > 0) {
+          return { lat: data[0].lat, lon: data[0].lon };
+        }
+        throw new Error("Location not found");
       } catch (error) {
-        console.error("Weather fetch error:", error);
-        speak("Sorry, I couldn't get the weather.");
+        console.error("Geocoding error:", error);
+        // Fallback coordinates for Noida
+        return { lat: 28.5355, lon: 77.3910 };
       }
     };
-
+    
+    const getTimeAndWeather = async () => {
+      showOutput('<span class="loading">🔄 Getting weather information...</span>');
+      
+      try {
+        // Check if API key is set
+        if (weatherApiKey === "YOUR_API_KEY") {
+          const errorMsg = "⚠️ Please set your OpenWeatherMap API key in the code";
+          showOutput(`<span class="error">${errorMsg}</span>`);
+          speak("Please set your weather API key");
+          return;
+        }
+        
+        const coords = await getNoidaCoords();
+        const res = await fetch(`https://api.openweathermap.org/data/3.0/onecall?lat=${coords.lat}&lon=${coords.lon}&appid=${weatherApiKey}&units=metric`);
+        
+        if (!res.ok) {
+          throw new Error(`Weather API error: ${res.status}`);
+        }
+        
+        const data = await res.json();
+        const temp = Math.round(data.current.temp);
+        const desc = data.current.weather[0].description;
+        const time = new Date().toLocaleTimeString('en-IN', { 
+          timeStyle: 'short',
+          timeZone: 'Asia/Kolkata'
+        });
+        
+        const weatherText = `The time is ${time}. Current weather in Noida is ${desc} with ${temp} degrees Celsius.`;
+        speak(weatherText);
+        showOutput(`<span class="success">✅ Weather: ${weatherText}</span>`);
+        
+      } catch (error) {
+        console.error("Weather fetch error:", error);
+        const errorMsg = "Sorry, I couldn't get the weather information.";
+        speak(errorMsg);
+        showOutput(`<span class="error">❌ ${errorMsg}</span>`);
+      }
+    };
+    
     const getNews = async () => {
       try {
         const res = await fetch(`https://newsdata.io/api/1/news?apikey=${newsApiKey}&q=AI&country=in&language=en`);
+        
+        if (!res.ok) {
+          throw new Error(`News API error: ${res.status}`);
+        }
+        
         const data = await res.json();
-        const articles = data.results.slice(0, 3); // top 3 headlines
-        let newsText = "Here are the top AI news from the last 24 hours. ";
+        const articles = data.results?.slice(0, 3) || [];
+        
+        if (articles.length === 0) {
+          throw new Error("No news articles found");
+        }
+        
+        let newsText = "Here are the top AI news from India. ";
         articles.forEach((article, i) => {
           newsText += `Headline ${i + 1}: ${article.title}. `;
         });
-
+        
         speak(newsText);
-        showOutput(prev => prev + "<br><br>📰 AI News:<br>" + newsText);
+        appendOutput(`<span class="success">📰 AI News:</span><br>${newsText}`);
+        
       } catch (error) {
         console.error("News fetch error:", error);
-        speak("Sorry, I couldn't get the news.");
+        const errorMsg = "Sorry, I couldn't get the news.";
+        speak(errorMsg);
+        appendOutput(`<span class="error">❌ ${errorMsg}</span>`);
       }
     };
-
+    
     const greetAndStart = async () => {
       speak("Hi Rachit!");
       await getTimeAndWeather();
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
       await getNews();
       setTimeout(() => speak("How can I help you today, Rachit?"), 3000);
     };
-
+    
+    // Initialize voices for mobile
+    const initializeVoices = () => {
+      if ('speechSynthesis' in window) {
+        speechSynthesis.getVoices();
+      }
+    };
+    
     window.onload = () => {
+      // Initialize voices
+      initializeVoices();
+      
+      // Re-initialize voices when they change (important for mobile)
+      if ('speechSynthesis' in window) {
+        speechSynthesis.onvoiceschanged = initializeVoices;
+      }
+      
       const start = () => {
         greetAndStart();
         document.body.removeEventListener("click", start);
+        document.body.removeEventListener("touchstart", start);
       };
-
+      
+      // Add both click and touch events for mobile support
       document.body.addEventListener("click", start);
+      document.body.addEventListener("touchstart", start);
     };
   </script>
 </body>
