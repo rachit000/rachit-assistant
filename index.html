@@ -3,89 +3,108 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Rachit's Assistant</title>
+  <title>Rachit's AI Assistant</title>
+  <script src="https://code.responsivevoice.org/responsivevoice.js?key=free"></script>
   <style>
-    body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
-    #output { margin-top: 20px; }
-    button { padding: 10px 20px; margin-top: 10px; }
-    input, textarea { width: 100%; padding: 10px; margin-top: 10px; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      padding: 20px;
+      text-align: center;
+    }
+    #output {
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 12px;
+      max-width: 600px;
+      font-size: 1.1rem;
+      margin-top: 20px;
+    }
+    .button {
+      margin-top: 20px;
+      padding: 12px 24px;
+      background-color: #3b82f6;
+      border: none;
+      color: white;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
-  <h1>Hello Rachit!</h1>
-  <div id="output"></div>
-
-  <hr/>
-
-  <h3>Ask ChatGPT (via Forefront):</h3>
-  <input type="text" id="userInput" placeholder="Ask me anything..." />
-  <button onclick="askChatGPT()">Send</button>
-  <div id="chatResponse"></div>
+  <h1>👋 Tap Anywhere to Start Rachit's Assistant</h1>
+  <div id="output">Awaiting user interaction...</div>
 
   <script>
+    const weatherApiKey = "your_openweathermap_api"; // Add your key
+    const newsApiKey = "pub_4713fd30b6134babbee1889bd2a7f798";
+    const forefrontChatGPTURL = "https://chat.forefront.ai/api"; // Optional if integrating later
+
     const speak = (text) => {
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = "en-IN"; // Indian accent
-      speechSynthesis.speak(utter);
+      responsiveVoice.speak(text, "Hindi Female", { rate: 1 });
     };
 
     const showOutput = (text) => {
-      const div = document.getElementById("output");
-      div.innerHTML += `<p>${text}</p>`;
-      speak(text);
+      document.getElementById("output").innerHTML = text.replace(/\n/g, "<br>");
     };
 
-    const sayGreeting = () => {
-      const now = new Date();
-      const time = now.toLocaleTimeString();
-      const greeting = `Hi Rachit! It's ${time}.`;
-      showOutput(greeting);
-    };
-
-    const getWeather = async () => {
+    const getTimeAndWeather = async () => {
+      const weatherCity = "Kota,IN";
       try {
-        const city = "Kota";
-        const apiKey = "f7cfda3b3a28494c9b814364d47e2f2e"; // example OpenWeatherMap API key
-        const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&units=metric&appid=${apiKey}`;
-        const res = await fetch(url);
+        const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${weatherCity}&appid=${weatherApiKey}&units=metric`);
         const data = await res.json();
-        const weather = `The weather in ${city} is ${data.main.temp}°C with ${data.weather[0].description}.`;
-        showOutput(weather);
-      } catch (err) {
-        showOutput("Couldn't fetch weather.");
+        const temp = data.main.temp;
+        const desc = data.weather[0].description;
+        const time = new Date().toLocaleTimeString('en-IN', { timeStyle: 'short' });
+
+        const weatherText = `The time is ${time}. Current weather in ${weatherCity} is ${desc} with ${temp} degree Celsius.`;
+        speak(weatherText);
+        showOutput(`✅ Weather: ${weatherText}`);
+      } catch (error) {
+        console.error("Weather fetch error:", error);
+        speak("Sorry, I couldn't get the weather.");
       }
     };
 
     const getNews = async () => {
       try {
-        const url = `https://newsdata.io/api/1/news?apikey=pub_4713fd30b6134babbee1889bd2a7f798&q=AI&language=en&country=in&category=technology`;
-        const res = await fetch(url);
+        const res = await fetch(`https://newsdata.io/api/1/news?apikey=${newsApiKey}&q=AI&country=in&language=en`);
         const data = await res.json();
-        const articles = data.results.slice(0, 3);
-        let news = "Here are the latest AI headlines: ";
+        const articles = data.results.slice(0, 3); // top 3 headlines
+        let newsText = "Here are the top AI news from the last 24 hours. ";
         articles.forEach((article, i) => {
-          news += `Headline ${i+1}: ${article.title}. `;
+          newsText += `Headline ${i + 1}: ${article.title}. `;
         });
-        showOutput(news);
-      } catch (err) {
-        showOutput("Couldn't fetch AI news.");
+
+        speak(newsText);
+        showOutput(prev => prev + "<br><br>📰 AI News:<br>" + newsText);
+      } catch (error) {
+        console.error("News fetch error:", error);
+        speak("Sorry, I couldn't get the news.");
       }
     };
 
-    const askChatGPT = async () => {
-      const input = document.getElementById("userInput").value;
-      if (!input.trim()) return;
-
-      const url = "https://chat.forefront.ai/"; // you must login manually, no public API yet
-      document.getElementById("chatResponse").innerHTML = "Open Forefront to chat → <a href='" + url + "' target='_blank'>" + url + "</a>";
+    const greetAndStart = async () => {
+      speak("Hi Rachit!");
+      await getTimeAndWeather();
+      await getNews();
+      setTimeout(() => speak("How can I help you today, Rachit?"), 3000);
     };
 
-    // Main Assistant Greeting
-    window.onload = async () => {
-      sayGreeting();
-      await getWeather();
-      await getNews();
-      setTimeout(() => speak("How can I help you today, Rachit?"), 2000);
+    window.onload = () => {
+      const start = () => {
+        greetAndStart();
+        document.body.removeEventListener("click", start);
+      };
+
+      document.body.addEventListener("click", start);
     };
   </script>
 </body>
