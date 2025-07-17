@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Rachit's AI Assistant</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      text-align: center;
+      background: #f0f0f0;
+      padding-top: 60px;
+    }
+    h1 { font-size: 2em; margin-bottom: 20px; }
+    #log { font-size: 1.2em; margin-top: 30px; }
+  </style>
+</head>
+<body>
+  <h1>🤖 Hi Rachit, your assistant is starting...</h1>
+  <div id="log">Preparing updates...</div>
+
+  <script>
+    const weatherAPI = 'https://api.open-meteo.com/v1/forecast?latitude=26.9124&longitude=75.7873&current=temperature_2m,weathercode&timezone=auto';
+    const newsAPI = 'https://newsdata.io/api/1/news?apikey=pub_4713fd30b6134babbee1889bd2a7f798&category=technology&language=en&domain=ai,openai,google.com';
+
+    // Text-to-Speech function
+    function speak(text) {
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.rate = 1;
+      utter.pitch = 1;
+      utter.lang = 'en-US';
+      speechSynthesis.speak(utter);
+    }
+
+    function updateLog(msg) {
+      document.getElementById('log').innerText = msg;
+    }
+
+    async function fetchWeather() {
+      try {
+        const res = await fetch(weatherAPI);
+        const data = await res.json();
+        const temp = data.current.temperature_2m;
+        const summary = `The current temperature in Kota is ${temp} degrees Celsius.`;
+        updateLog("Weather ready.");
+        return summary;
+      } catch (e) {
+        return "I couldn't fetch the weather.";
+      }
+    }
+
+    async function fetchNews() {
+      try {
+        const res = await fetch(newsAPI);
+        const data = await res.json();
+        let headlines = data.results.slice(0, 3).map(n => n.title).join(". ");
+        updateLog("News ready.");
+        return `Here are the latest AI news headlines: ${headlines}`;
+      } catch (e) {
+        return "I couldn't fetch the AI news.";
+      }
+    }
+
+    async function startAssistant() {
+      speak("Hi Rachit.");
+      
+      // TIME
+      const now = new Date();
+      const timeString = `It is now ${now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+      speak(timeString);
+      updateLog("Time announced.");
+
+      // WEATHER
+      const weatherText = await fetchWeather();
+      speak(weatherText);
+
+      // AI NEWS
+      const newsText = await fetchNews();
+      speak(newsText);
+
+      // Final prompt
+      setTimeout(() => {
+        speak("How can I help you?");
+        updateLog("Ready for next command.");
+      }, 5000);
+    }
+
+    // Auto-start on load
+    window.onload = () => {
+      startAssistant();
+    }
+  </script>
+</body>
+</html>
