@@ -55,8 +55,8 @@
   </style>
 </head>
 <body>
-  <h1>👋 Tap Anywhere to Start Rachit's Assistant</h1>
-  <div id="output">Awaiting user interaction...</div>
+  <h1>👋 Rachit's AI Assistant</h1>
+  <div id="output">Starting up...</div>
   <script>
     // You need to replace 'YOUR_API_KEY' with your actual OpenWeatherMap API key
     const weatherApiKey = "YOUR_API_KEY"; // Get from https://openweathermap.org/api
@@ -64,37 +64,49 @@
     
     // Enhanced TTS function with mobile support
     const speak = (text) => {
-      if ('speechSynthesis' in window) {
-        // Use native Web Speech API for better mobile support
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1;
-        utterance.pitch = 1;
-        utterance.volume = 1;
-        utterance.lang = 'en-IN';
-        
-        // Try to use an Indian English voice if available
-        const voices = speechSynthesis.getVoices();
-        const indianVoice = voices.find(voice => 
-          voice.lang.includes('en-IN') || voice.name.includes('Indian')
-        );
-        
-        if (indianVoice) {
-          utterance.voice = indianVoice;
-        } else {
-          // Fallback to female voice
-          const femaleVoice = voices.find(voice => 
-            voice.name.toLowerCase().includes('female') || 
-            voice.name.toLowerCase().includes('woman')
-          );
-          if (femaleVoice) utterance.voice = femaleVoice;
-        }
-        
-        speechSynthesis.speak(utterance);
-      } else if (typeof responsiveVoice !== 'undefined') {
-        // Fallback to ResponsiveVoice
-        responsiveVoice.speak(text, "Hindi Female", { rate: 1 });
+      // Force ResponsiveVoice for mobile compatibility
+      if (typeof responsiveVoice !== 'undefined' && responsiveVoice.voiceSupport()) {
+        responsiveVoice.speak(text, "Hindi Female", { 
+          rate: 0.9,
+          pitch: 1,
+          volume: 1,
+          onstart: () => console.log("TTS Started"),
+          onend: () => console.log("TTS Ended"),
+          onerror: (error) => console.error("TTS Error:", error)
+        });
       } else {
-        console.log("TTS: " + text);
+        // Fallback to native API
+        if ('speechSynthesis' in window) {
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.rate = 0.9;
+          utterance.pitch = 1;
+          utterance.volume = 1;
+          utterance.lang = 'en-IN';
+          
+          // Wait for voices to load
+          const setVoiceAndSpeak = () => {
+            const voices = speechSynthesis.getVoices();
+            const preferredVoice = voices.find(voice => 
+              voice.lang.includes('en-IN') || 
+              voice.name.toLowerCase().includes('female') ||
+              voice.name.toLowerCase().includes('woman')
+            );
+            
+            if (preferredVoice) {
+              utterance.voice = preferredVoice;
+            }
+            
+            speechSynthesis.speak(utterance);
+          };
+          
+          if (speechSynthesis.getVoices().length > 0) {
+            setVoiceAndSpeak();
+          } else {
+            speechSynthesis.addEventListener('voiceschanged', setVoiceAndSpeak, { once: true });
+          }
+        } else {
+          console.log("TTS not supported: " + text);
+        }
       }
     };
     
@@ -135,16 +147,16 @@
           return;
         }
         
-        const coords = await getNoidaCoords();
-        const res = await fetch(`https://api.openweathermap.org/data/3.0/onecall?lat=${coords.lat}&lon=${coords.lon}&appid=${weatherApiKey}&units=metric`);
+        // Use current weather API instead of One Call API
+        const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=Noida,UP,IN&appid=${weatherApiKey}&units=metric`);
         
         if (!res.ok) {
           throw new Error(`Weather API error: ${res.status}`);
         }
         
         const data = await res.json();
-        const temp = Math.round(data.current.temp);
-        const desc = data.current.weather[0].description;
+        const temp = Math.round(data.main.temp);
+        const desc = data.weather[0].description;
         const time = new Date().toLocaleTimeString('en-IN', { 
           timeStyle: 'short',
           timeZone: 'Asia/Kolkata'
@@ -209,23 +221,8 @@
     };
     
     window.onload = () => {
-      // Initialize voices
-      initializeVoices();
-      
-      // Re-initialize voices when they change (important for mobile)
-      if ('speechSynthesis' in window) {
-        speechSynthesis.onvoiceschanged = initializeVoices;
-      }
-      
-      const start = () => {
-        greetAndStart();
-        document.body.removeEventListener("click", start);
-        document.body.removeEventListener("touchstart", start);
-      };
-      
-      // Add both click and touch events for mobile support
-      document.body.addEventListener("click", start);
-      document.body.addEventListener("touchstart", start);
+      // Start immediately without user interaction
+      greetAndStart();
     };
   </script>
 </body>
